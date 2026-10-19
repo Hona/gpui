@@ -1264,12 +1264,18 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
             } => {
                 let focused_window = state.keyboard_focused_window.clone();
 
-                let keymap_state = state.keymap_state.as_mut().unwrap();
+                // HEX PATCH: a compositor can send modifiers before any XkbV1
+                // keymap (a keymap-less virtual keyboard); ignore them.
+                let Some(keymap_state) = state.keymap_state.as_mut() else {
+                    return;
+                };
                 let old_layout =
                     keymap_state.serialize_layout(xkbcommon::xkb::STATE_LAYOUT_EFFECTIVE);
                 keymap_state.update_mask(mods_depressed, mods_latched, mods_locked, 0, 0, group);
                 state.modifiers = Modifiers::from_xkb(keymap_state);
-                let keymap_state = state.keymap_state.as_mut().unwrap();
+                let Some(keymap_state) = state.keymap_state.as_mut() else {
+                    return;
+                };
                 state.capslock = Capslock::from_xkb(keymap_state);
 
                 let input = PlatformInput::ModifiersChanged(ModifiersChangedEvent {
@@ -1299,7 +1305,10 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                     return;
                 };
 
-                let keymap_state = state.keymap_state.as_ref().unwrap();
+                // HEX PATCH: keys without an XkbV1 keymap cannot be decoded.
+                let Some(keymap_state) = state.keymap_state.as_ref() else {
+                    return;
+                };
                 let keycode = Keycode::from(key + MIN_KEYCODE);
                 let keysym = keymap_state.key_get_one_sym(keycode);
 
